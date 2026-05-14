@@ -263,7 +263,8 @@ input,select{font-family:var(--font)}
 .ob-title span{color:var(--accent);text-shadow:0 0 20px rgba(39,85,230,0.4)}
 .ob-subtitle{color:rgba(255,255,255,0.8);font-size:14px;text-align:center;max-width:360px}
 .ob-fields{display:flex;flex-direction:column;gap:12px;width:100%;max-width:360px}
-.ob-input{
+.ob-input,
+#ob_currency {
   background:rgba(255,255,255,.07);
   border:1px solid rgba(255,255,255,.12);
   border-radius:12px;
@@ -272,6 +273,20 @@ input,select{font-family:var(--font)}
   font-size:14px;
   transition:border-color .2s;
   width:100%;
+  box-sizing:border-box;
+}
+#ob_currency {
+  cursor:pointer;
+  appearance:none;
+  -webkit-appearance:none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+  background-size: 16px;
+}
+.ob-btn {
+  width:100%;
+  box-sizing:border-box;
 }
 .ob-input::placeholder{color:rgba(255,255,255,0.6)}
 .ob-input:focus{outline:none;border-color:var(--accent)}
