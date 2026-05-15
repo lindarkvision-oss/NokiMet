@@ -1961,4 +1961,25 @@ body.ls-warning-active {
 .stock-delete-btn-confirm:hover {
   opacity: 0.9;
 }
+/* ===================== BOUTONS IMPORT/EXPORT CSV ===================== */
+.btn-export-csv,
+.btn-import-csv {
+  background: var(--green-bg);
+  border: 1px solid var(--green);
+  color: var(--green);
+  border-radius: 10px;
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: var(--font);
+}
+
+.btn-export-csv:hover,
+.btn-import-csv:hover {
+  background: var(--green);
+  color: #fff;
+  transform: translateY(-1px);
+}
 </style>
