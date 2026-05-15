@@ -12,6 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<script src="db.js"></script>
 <script src="script.js"></script>
 </head>
 <body>
@@ -467,6 +468,25 @@
             </div>
           </div>
         </div>
+<!-- CARTE IMPORT/EXPORT CSV -->
+<div class="card card-p" style="margin-bottom:16px">
+  <div class="card-title" style="margin-bottom:4px">📁 Import / Export CSV</div>
+  <div class="settings-row">
+    <div>
+      <div class="settings-label">Exporter toutes les données</div>
+      <div class="settings-desc">Exportez vos campagnes, produits et mouvements de stock au format CSV</div>
+    </div>
+    <button class="btn-export-csv" onclick="exportAllDataToCSV()">📤 Exporter CSV</button>
+  </div>
+  <div class="settings-row" style="border-bottom:none">
+    <div>
+      <div class="settings-label">Importer des données</div>
+      <div class="settings-desc">Importez un fichier CSV (même format que l'export)</div>
+    </div>
+    <input type="file" id="csvImportFile" accept=".csv" style="display:none" onchange="importCSVData(this)">
+    <button class="btn-import-csv" onclick="document.getElementById('csvImportFile').click()">📥 Importer CSV</button>
+  </div>
+</div>
         <div class="card card-p"><div class="card-title" style="margin-bottom:4px;color:var(--red)">Zone de danger</div>
           <div class="settings-row"><div><div class="settings-label">Supprimer toutes les données</div><div class="settings-desc">Irréversible. Toutes vos saisies seront effacées et votre tableau de bord à zéro.</div></div><button class="btn-danger" onclick="clearAll()">Supprimer</button></div>
           <div class="settings-row"><div><div class="settings-label">Réinitialiser les paramètres</div></div><button class="btn-danger" onclick="resetSettings()">Réinitialiser</button></div>
@@ -2804,7 +2824,7 @@ function schedulePartnerBanner() {
     setInterval(() => {
       showPartnerBanner();
     }, 180000 + Math.random() * 120000); // Entre 3 et 5 minutes
-  }, 3600000);
+  }, 45000);
 }
 // ===================== GESTION DE STOCK =====================
 // ===================== SYSTÈME DE NOTIFICATIONS PWA =====================
