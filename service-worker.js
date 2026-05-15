@@ -1,4 +1,4 @@
-const CACHE_NAME = 'noki-v5-secure';
+const CACHE_NAME = 'noki-v6-indexeddb';
 const NK_DOMAIN = 'nokimet.netlify.app';
 const NK_ALLOWED_ORIGINS = [
   'localhost',
