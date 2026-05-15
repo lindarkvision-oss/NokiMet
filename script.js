@@ -270,25 +270,74 @@ let state = {
 };
 let profitChart = null, costChart = null, deliveryChart = null;
 
-function loadState() {
+async function loadState() {
   try {
+    // Charger les préférences UI depuis localStorage
     const raw = localStorage.getItem(SK);
-    if (raw) state = { ...state, ...JSON.parse(raw) };
-  } catch(e) {}
+    if (raw) {
+      const uiPrefs = JSON.parse(raw);
+      state = { ...state, ...uiPrefs };
+    }
+    
+    // Charger les données critiques depuis IndexedDB
+    if (window.getAllEntriesDB) {
+      state.entries = await getAllEntriesDB();
+    }
+    
+    if (window.getAllFixedChargesDB) {
+      state.fixedCharges = await getAllFixedChargesDB();
+    }
+    
+    if (window.getAllProductsDB && window.getAllMovementsDB) {
+      const products = await getAllProductsDB();
+      const movements = await getAllMovementsDB();
+      state.stock = { products, movements };
+    }
+    
+  } catch(e) {
+    console.error('Erreur loadState:', e);
+  }
 }
-function saveState() {
+async function saveState() {
   if (!checkLocalStorage()) {
     showLocalStorageWarning();
     return;
   }
   try { 
-    localStorage.setItem(SK, JSON.stringify(state));
-    // Mettre à jour le hash d'intégrité après chaque sauvegarde
+    // Sauvegarde locale pour les préférences UI
+    const uiState = {
+      currency: state.currency,
+      brand: state.brand,
+      logo: state.logo,
+      alertDelivery: state.alertDelivery,
+      alertRoi: state.alertRoi,
+      filters: state.filters,
+      secondaryCurrency: state.secondaryCurrency,
+      exchangeRate: state.exchangeRate,
+      theme: state.theme,
+      ceoPIN: state.ceoPIN,
+      stockPIN: state.stockPIN
+    };
+    localStorage.setItem(SK, JSON.stringify(uiState));
+    
+    // Sauvegarde des données critiques dans IndexedDB
+    if (window.saveEntryDB && state.entries) {
+      // Sauvegarde incrémentale des entrées
+      for (const entry of state.entries) {
+        await saveEntryDB(entry);
+      }
+    }
+    
+    if (window.saveFixedChargesDB && state.fixedCharges) {
+      await saveFixedChargesDB(state.fixedCharges);
+    }
+    
+    // Mettre à jour le hash d'intégrité
     localStorage.setItem('noki_integrity', generateIntegrityHash());
-    // Marquer les données comme synchronisées
     markDataStale();
     lastSyncTimestamp = new Date();
   } catch(e) {
+    console.error('Erreur saveState:', e);
     showLocalStorageWarning();
   }
 }
@@ -1320,23 +1369,83 @@ document.getElementById('entryForm').addEventListener('submit', e => {
 });
 
 window.deleteEntry = id => { state.entries = state.entries.filter(e => e.id !== id); saveState(); updateDashboard(); updateAnalytics(); showToast('Saisie supprimée'); };
-function clearAll() { 
-  if (!confirm('Effacer toutes les données ? Cette action est irréversible.')) return; 
-  state.entries = []; 
-  state.filters = { campaign: '', dateFrom: '', dateTo: '' };
-  saveState(); 
-  // Réinitialiser les champs visuellement
-  document.getElementById('filterCampaign').value = '';
-  document.getElementById('filterDateFrom').value = '';
-  document.getElementById('filterDateTo').value = '';
-  document.getElementById('filterResetBtn').style.display = 'none';
-  document.getElementById('filterBadge').style.display = 'none';
-  document.getElementById('viewAllBtn').style.display = 'none';
-  updateDashboard(); 
-  updateAnalytics(); 
-  showToast('Données effacées'); 
+async function clearAll() { 
+  if (!confirm('⚠️ Effacer TOUTES les données ?\n\nCette action est IRRÉVERSIBLE et supprimera :\n- Toutes les saisies de campagnes\n- Tous les produits et mouvements de stock\n- Toutes les charges fixes\n\nVoulez-vous vraiment continuer ?')) return; 
+  
+  try {
+    // Vider IndexedDB
+    if (window.clearAllEntriesDB) await clearAllEntriesDB();
+    if (window.clearAllMovementsDB) await clearAllMovementsDB();
+    if (window.clearAllFixedChargesDB) await clearAllFixedChargesDB();
+    
+    // Supprimer les produits un par un
+    const products = await getAllProductsDB();
+    for (const product of products) {
+      await deleteProductDB(product.id);
+    }
+    
+    // Vider state
+    state.entries = []; 
+    state.fixedCharges = [];
+    state.filters = { campaign: '', dateFrom: '', dateTo: '' };
+    
+    // Nettoyer localStorage
+    localStorage.removeItem('noki_stock');
+    
+    await saveState();
+    
+    // Réinitialiser UI
+    document.getElementById('filterCampaign').value = '';
+    document.getElementById('filterDateFrom').value = '';
+    document.getElementById('filterDateTo').value = '';
+    document.getElementById('filterResetBtn').style.display = 'none';
+    document.getElementById('filterBadge').style.display = 'none';
+    document.getElementById('viewAllBtn').style.display = 'none';
+    
+    updateDashboard(); 
+    updateAnalytics(); 
+    showToast('🗑️ Toutes les données ont été supprimées'); 
+    
+  } catch(e) {
+    console.error('Erreur clearAll:', e);
+    showToast('❌ Erreur lors de la suppression');
+  }
 }
 
+// ===================== VÉRIFICATION D'INTÉGRITÉ =====================
+async function verifyDataIntegrity() {
+  console.log('🔍 Vérification intégrité des données...');
+  
+  const entries = await getAllEntriesDB();
+  const products = await getAllProductsDB();
+  const movements = await getAllMovementsDB();
+  
+  let issues = [];
+  
+  // Vérifier les entrées orphelines
+  for (const movement of movements) {
+    const productExists = products.some(p => p.name === movement.product);
+    if (!productExists && movement.type === 'out') {
+      issues.push(`Mouvement orphelin: ${movement.product}`);
+    }
+  }
+  
+  // Vérifier les stocks négatifs
+  for (const product of products) {
+    if (product.qty < 0) {
+      issues.push(`Stock négatif pour ${product.name}: ${product.qty}`);
+    }
+  }
+  
+  if (issues.length > 0) {
+    console.warn('⚠️ Problèmes d\'intégrité détectés:', issues);
+    showToast(`⚠️ ${issues.length} anomalie(s) détectée(s) dans les données`);
+  } else {
+    console.log('✅ Intégrité des données OK');
+  }
+  
+  return issues;
+}
 function runSim() {
   // Conversion devise
   const exRate = state.secondaryCurrency && state.exchangeRate ? state.exchangeRate : 0;
@@ -1473,19 +1582,38 @@ function resetSettings() { state.alertDelivery = 50; state.alertRoi = 0; applySe
 
 function showToast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2800); }
 
-function init() {
+// ===================== NOUVELLE INITIALISATION =====================
+async function init() {
   // Initialiser la sécurité AVANT tout
   initializeSecurity();
   
-  loadState();
+  // 1. Initialiser IndexedDB
+  try {
+    await initIndexedDB();
+    console.log('✅ IndexedDB prête');
+    
+    // 2. Demander le stockage persistant
+    await requestPersistentStorage();
+    
+    // 3. Migrer depuis localStorage si nécessaire
+    await migrateFromLocalStorage();
+    
+    // 4. Synchroniser l'UI state depuis IndexedDB
+    await syncUIStateToLocalStorage();
+    
+  } catch(e) {
+    console.error('❌ Erreur initialisation IndexedDB:', e);
+    showToast('⚠️ Mode dégradé - utilisation du stockage local uniquement');
+  }
+  
+  // 5. Appliquer le thème
   applyTheme();
   
-  // ===================== NOUVELLE LOGIQUE DE FLUX =====================
+  // 6. Logique de navigation
   const isActivated = localStorage.getItem('noki_activated') === 'true';
   const isConfigured = localStorage.getItem(SK_CONFIGURED) === 'true';
   
   if (!isActivated) {
-    // Écran 1 : Activation
     document.getElementById('onboarding').classList.add('hidden');
     document.getElementById('app').classList.remove('visible');
     document.getElementById('activationScreen').style.display = 'flex';
@@ -1494,19 +1622,17 @@ function init() {
   }
   
   if (!isConfigured) {
-    // Écran 2 : Onboarding (configuration)
     document.getElementById('activationScreen').style.display = 'none';
     document.getElementById('app').classList.remove('visible');
     document.getElementById('onboarding').classList.remove('hidden');
     return;
   }
   
-  // Écran 3 : Dashboard
   document.getElementById('activationScreen').style.display = 'none';
   document.getElementById('onboarding').classList.add('hidden');
   enterApp();
   
-  // Restaurer les filtres sauvegardés (uniquement si l'app est chargée)
+  // Restaurer les filtres
   if (state.filters) {
     document.getElementById('filterCampaign').value = state.filters.campaign || '';
     document.getElementById('filterDateFrom').value = state.filters.dateFrom || '';
@@ -1517,6 +1643,7 @@ function init() {
     }
   }
   
+  // 7. Event listeners
   document.getElementById('alertDelivery').addEventListener('change', saveSettings);
   document.getElementById('s_rate').addEventListener('input', runSim);
   document.getElementById('s_buy').addEventListener('input', calculateSuggestedPrice);
@@ -1531,6 +1658,13 @@ function init() {
     document.getElementById('settingsSecondaryCurrencyLabel2').textContent = state.secondaryCurrency;
     document.getElementById('settingsMainCurrencyLabel').textContent = state.currency;
   }
+  
+  // 8. Initialiser les systèmes
+  initAutoSync();
+  initCrossTabSync();
+  initVisibilitySync();
+  initNotifications();
+}
   
   function resetAppFlow() {
   localStorage.removeItem('noki_activated');
@@ -2757,5 +2891,104 @@ document.addEventListener('DOMContentLoaded', function() {
   stockNavBtn.onclick = openStock;
   bottomNav.appendChild(stockNavBtn);
 })();
+// ===================== IMPORT / EXPORT CSV =====================
+window.exportAllDataToCSV = function() {
+  try {
+    // Récupération sécurisée des données
+    const entries = state.entries || [];
+    const stockData = getStockData() || { products: [], movements: [] };
+    const charges = state.fixedCharges || [];
+    
+    let downloadCount = 0;
+
+    // 1. Export des campagnes
+    if (entries.length > 0) {
+      let campaignsCSV = "id,date,campagne,spend,spend_currency,orders,delivered,confirmed,buy,buy_currency,sell,sell_currency,ship,ship_currency,call,call_currency,returns,other,other_currency\n";
+      entries.forEach(e => {
+        campaignsCSV += `${e.id},${e.dateISO},"${(e.campaign || '').replace(/"/g, '""')}",${e.spend || 0},${e.spendCurrency || 'main'},${e.orders || 0},${e.delivered || 0},${e.confirmed || 0},${e.buy || 0},${e.buyCurrency || 'main'},${e.sell || 0},${e.sellCurrency || 'main'},${e.ship || 0},${e.shipCurrency || 'main'},${e.call || 0},${e.callCurrency || 'main'},${e.returns || 0},${e.other || 0},${e.otherCurrency || 'main'}\n`;
+      });
+      downloadCSV(campaignsCSV, 'campagnes.csv');
+      downloadCount++;
+    }
+    
+    // 2. Export des produits (Stock)
+    if (stockData.products && stockData.products.length > 0) {
+      let productsCSV = "id,nom,prix_achat,prix_vente,quantite,seuil_alerte\n";
+      stockData.products.forEach(p => {
+        productsCSV += `${p.id},"${(p.name || '').replace(/"/g, '""')}",${p.buy || 0},${p.sell || 0},${p.qty || 0},${p.alert || 5}\n`;
+      });
+      downloadCSV(productsCSV, 'produits.csv');
+      downloadCount++;
+    }
+    
+    // 3. Export des mouvements (Stock)
+    if (stockData.movements && stockData.movements.length > 0) {
+      let movementsCSV = "id,date,produit,type,quantite,motif\n";
+      stockData.movements.forEach(m => {
+        movementsCSV += `${m.id},${m.date},"${(m.product || '').replace(/"/g, '""')}",${m.type},${m.qty},"${(m.reason || '').replace(/"/g, '""')}"\n`;
+      });
+      downloadCSV(movementsCSV, 'mouvements_stock.csv');
+      downloadCount++;
+    }
+    
+    // 4. Export des charges fixes
+    if (charges.length > 0) {
+      let chargesCSV = "libelle,montant\n";
+      charges.forEach(c => {
+        chargesCSV += `"${(c.label || '').replace(/"/g, '""')}",${c.amount || 0}\n`;
+      });
+      downloadCSV(chargesCSV, 'charges_fixes.csv');
+      downloadCount++;
+    }
+    
+    // Notification de succès ou avertissement
+    if (downloadCount > 0) {
+      showToast(`📁 Export terminé : ${downloadCount} fichier(s) CSV téléchargé(s)`);
+    } else {
+      showToast('⚠️ Aucune donnée à exporter (vos tableaux sont vides)');
+    }
+    
+  } catch(err) {
+    console.error("Erreur lors de l'export :", err);
+    showToast('❌ Erreur lors de l\'export des données');
+  }
+};
+
+// Fonction utilitaire pour lancer le téléchargement du fichier généré
+function downloadCSV(content, filename) {
+  const blob = new Blob(["\uFEFF" + content], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.href = url;
+  link.setAttribute('download', filename);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+// ===================== IMPORT CSV =====================
+// Cette fonction manquait dans ton code, elle permet au bouton de réagir.
+window.importCSVData = function(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const text = e.target.result;
+    
+    // Note: Comme tu as 4 types d'exports CSV différents (campagnes, stock, etc.), 
+    // l'import automatique nécessite de parser et de deviner de quel fichier il s'agit.
+    // Pour l'instant, on active l'interface et on prévient l'utilisateur.
+    console.log("Fichier CSV lu :", file.name);
+    showToast(`⚠️ L'importation de fichiers CSV est en cours de développement.`);
+    
+    // Réinitialiser le champ input pour permettre de recliquer sur le même fichier plus tard
+    input.value = '';
+  };
+  reader.readAsText(file);
+};
+
+// Lancement de l'application
 init();
 </script>
