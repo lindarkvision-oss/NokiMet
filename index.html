@@ -655,14 +655,14 @@
 
     <!-- CHARGES FIXES -->
     <div class="ceo-section">
-      <div class="ceo-section-title">💰 Charges Fixes Mensuelles</div>
+      <div class="ceo-section-title"> Charges Fixes Mensuelles</div>
       <div class="ceo-charge-list" id="ceoChargeList"></div>
       <div class="ceo-charge-add">
         <input type="text" id="ceoChargeLabel" placeholder="Libellé (ex: Loyer)">
         <input type="number" id="ceoChargeAmount" placeholder="Montant" min="0" style="max-width:140px">
         <button onclick="ceoAddCharge()">+ Ajouter</button>
       </div>
-      <div class="ceo-total-fixes"><span>💰 Total Charges Fixes</span><span id="ceo_total_fixes" style="font-family:var(--font-m);font-size:18px">—</span></div>
+      <div class="ceo-total-fixes"><span> Total Charges Fixes</span><span id="ceo_total_fixes" style="font-family:var(--font-m);font-size:18px">—</span></div>
     </div>
 
     <!-- MODIFIER LE PIN -->
@@ -670,7 +670,7 @@
       <div class="ceo-section-title">🔒 Sécurité</div>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
         <input type="password" id="ceoNewPin" placeholder="Nouveau PIN (4 chiffres)" maxlength="4" style="background:var(--surf-2);border:1px solid var(--border);border-radius:10px;padding:10px 13px;font-size:13px;color:var(--ink);outline:none;width:180px;font-family:var(--font-m)">
-        <button class="ceo-pin-change-btn" onclick="ceoChangePin()">🔒 Changer le PIN</button>
+        <button class="ceo-pin-change-btn" onclick="ceoChangePin()"> Changer le PIN</button>
       </div>
     </div>
   </div>
@@ -1433,7 +1433,7 @@ function generatePDF() {
     
     ${charges.length > 0 ? `
     <div class="ceo-section">
-      <div class="section-title">💰 Charges Fixes Mensuelles</div>
+      <div class="section-title"> Charges Fixes Mensuelles</div>
       ${charges.map(c => `<div class="charge-row"><span>${c.label}</span><span>${fmt(c.amount)}</span></div>`).join('')}
       <div class="charge-total">Total Charges Fixes : ${fmt(totalFixes)}</div>
       <div style="margin-top:8px;font-weight:600;color:${(agg.net-totalFixes)>=0?'#059669':'#dc2626'}">
